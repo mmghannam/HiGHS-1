@@ -429,6 +429,28 @@ HighsInt Highs_postsolve(void* highs, const double* col_value,
                          const double* col_dual, const double* row_dual);
 
 /**
+ * Transform a solution from the original space to the presolved space.
+ *
+ * This function takes a solution defined on the original model and transforms
+ * it to the presolved space. This is useful when you want to use a solution
+ * from the original model in the presolved model, for example to provide a
+ * warm start. The presolved model must have been obtained by calling
+ * `Highs_presolve` or `Highs_getPresolvedLp`.
+ *
+ * @param highs                A pointer to the Highs instance.
+ * @param col_value            An array of length [num_col] with the column
+ *                             solution values in the original space.
+ * @param presolved_col_value  An array to be filled with the presolved column
+ *                             solution values. Must be pre-allocated to size
+ *                             [presolved_num_col], which can be obtained by
+ *                             calling `Highs_getPresolvedNumCol`.
+ *
+ * @returns A `kHighsStatus` constant indicating whether the call succeeded.
+ */
+HighsInt Highs_getPresolveSolution(const void* highs, const double* col_value,
+                                   double* presolved_col_value);
+
+/**
  * Write the solution information (including dual and basis status, if
  * available) to a file.
  *

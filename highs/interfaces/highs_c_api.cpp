@@ -223,6 +223,44 @@ HighsInt Highs_postsolve(void* highs, const double* col_value,
   return (HighsInt)((Highs*)highs)->postsolve(solution);
 }
 
+HighsInt Highs_getPresolveSolution(const void* highs, const double* col_value,
+                                   double* presolved_col_value) {
+  const HighsLp& lp = ((Highs*)highs)->getLp();
+  const HighsLp& presolved_lp = ((Highs*)highs)->getPresolvedLp();
+  HighsInt num_col = lp.num_col_;
+  HighsInt presolved_num_col = presolved_lp.num_col_;
+
+  // Check that col_value is provided
+  if (!col_value) {
+    return (HighsInt)HighsStatus::kError;
+  }
+
+  // Check that presolved_col_value is provided
+  if (!presolved_col_value) {
+    return (HighsInt)HighsStatus::kError;
+  }
+
+  // Create a vector from col_value
+  std::vector<double> col_value_vec(num_col);
+  for (HighsInt iCol = 0; iCol < num_col; iCol++) {
+    col_value_vec[iCol] = col_value[iCol];
+  }
+
+  // Transform to presolved space
+  std::vector<double> presolved_col_value_vec;
+  HighsStatus status =
+      ((Highs*)highs)->presolveSol(col_value_vec, presolved_col_value_vec);
+
+  // Copy the result to presolved_col_value
+  if (status == HighsStatus::kOk) {
+    for (HighsInt iCol = 0; iCol < presolved_num_col; iCol++) {
+      presolved_col_value[iCol] = presolved_col_value_vec[iCol];
+    }
+  }
+
+  return (HighsInt)status;
+}
+
 HighsInt Highs_readModel(void* highs, const char* filename) {
   return (HighsInt)((Highs*)highs)->readModel(std::string(filename));
 }
