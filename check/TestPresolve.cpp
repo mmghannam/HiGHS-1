@@ -85,6 +85,75 @@ TEST_CASE("postsolve-no-basis", "[highs_test_presolve]") {
   highs.resetGlobalScheduler(true);
 }
 
+TEST_CASE("presolve-solution-transform", "[highs_test_presolve]") {
+  // Test transforming a solution from original space to presolved space
+  Highs highs;
+  highs.setOptionValue("output_flag", dev_run);
+  std::string model_file =
+      std::string(HIGHS_DIR) + "/check/instances/afiro.mps";
+  highs.readModel(model_file);
+
+  // Solve the original model
+  highs.run();
+  const double original_objective = highs.getInfo().objective_function_value;
+  HighsSolution original_solution = highs.getSolution();
+
+  // Now clear solver and presolve
+  highs.clearSolver();
+  highs.presolve();
+  HighsLp presolved_lp = highs.getPresolvedLp();
+
+  // Transform the original solution to presolved space
+  HighsSolution presolved_solution_from_original;
+  HighsStatus status = highs.presolveSol(original_solution,
+                                         presolved_solution_from_original);
+  REQUIRE(status == HighsStatus::kOk);
+  REQUIRE(presolved_solution_from_original.value_valid);
+  REQUIRE(int(presolved_solution_from_original.col_value.size()) ==
+          presolved_lp.num_col_);
+
+  // Solve the presolved model to get the true presolved solution
+  Highs highs_presolved;
+  highs_presolved.setOptionValue("output_flag", dev_run);
+  highs_presolved.setOptionValue("presolve", kHighsOffString);
+  highs_presolved.passModel(presolved_lp);
+  highs_presolved.run();
+  HighsSolution presolved_solution_direct = highs_presolved.getSolution();
+
+  // The objective values should match
+  double obj_from_transformed = 0.0;
+  for (HighsInt iCol = 0; iCol < presolved_lp.num_col_; iCol++) {
+    obj_from_transformed += presolved_lp.col_cost_[iCol] *
+                           presolved_solution_from_original.col_value[iCol];
+  }
+  obj_from_transformed += presolved_lp.offset_;
+
+  if (dev_run) {
+    printf("Original objective: %g\n", original_objective);
+    printf("Objective from transformed solution: %g\n", obj_from_transformed);
+    printf("Direct presolved objective: %g\n",
+           highs_presolved.getInfo().objective_function_value);
+  }
+
+  // Check that the objective values are close
+  REQUIRE(std::fabs(obj_from_transformed - original_objective) <=
+          1e-6 * std::max(1.0, std::fabs(original_objective)));
+
+  // Test the simpler vector version
+  std::vector<double> presolved_col_value;
+  status = highs.presolveSol(original_solution.col_value, presolved_col_value);
+  REQUIRE(status == HighsStatus::kOk);
+  REQUIRE(int(presolved_col_value.size()) == presolved_lp.num_col_);
+
+  // The two methods should give the same result
+  for (HighsInt iCol = 0; iCol < presolved_lp.num_col_; iCol++) {
+    REQUIRE(doubleEqual(presolved_col_value[iCol],
+                       presolved_solution_from_original.col_value[iCol]));
+  }
+
+  highs.resetGlobalScheduler(true);
+}
+
 TEST_CASE("presolve-solve-postsolve-mip", "[highs_test_presolve]") {
   std::string model_file =
       std::string(HIGHS_DIR) + "/check/instances/flugpl.mps";

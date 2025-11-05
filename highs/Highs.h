@@ -245,6 +245,39 @@ class Highs {
   HighsStatus postsolve(const HighsSolution& solution, const HighsBasis& basis);
 
   /**
+   * @brief Transform a solution from the original space to the presolved space
+   *
+   * This method takes a solution defined on the original model and transforms
+   * it to the presolved space. This is useful when you want to use a solution
+   * from the original model in the presolved model, for example to provide a
+   * warm start.
+   *
+   * @param solution The solution in the original space (must have valid
+   * col_value)
+   * @param presolved_solution The solution in the presolved space (output)
+   *
+   * @returns HighsStatus::kOk if successful, HighsStatus::kError if presolve
+   * hasn't been run or solution is invalid
+   */
+  HighsStatus presolveSol(const HighsSolution& solution,
+                          HighsSolution& presolved_solution);
+
+  /**
+   * @brief Transform column values from the original space to the presolved
+   * space
+   *
+   * Simpler version that only transforms the primal column values.
+   *
+   * @param col_value Column values in the original space
+   * @param presolved_col_value Column values in the presolved space (output)
+   *
+   * @returns HighsStatus::kOk if successful, HighsStatus::kError if presolve
+   * hasn't been run or col_value size is invalid
+   */
+  HighsStatus presolveSol(const std::vector<double>& col_value,
+                          std::vector<double>& presolved_col_value);
+
+  /**
    * @brief Write the current solution to a file in a given style
    */
   HighsStatus writeSolution(const std::string& filename,

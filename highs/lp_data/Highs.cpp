@@ -3527,6 +3527,94 @@ HighsStatus Highs::postsolve(const HighsSolution& solution,
   return returnFromHighs(return_status);
 }
 
+HighsStatus Highs::presolveSol(const HighsSolution& solution,
+                               HighsSolution& presolved_solution) {
+  // Check that presolve has been run
+  const bool can_run_presolve_sol =
+      model_presolve_status_ == HighsPresolveStatus::kReduced ||
+      model_presolve_status_ == HighsPresolveStatus::kReducedToEmpty ||
+      model_presolve_status_ == HighsPresolveStatus::kNotReduced;
+  if (!can_run_presolve_sol) {
+    highsLogUser(options_.log_options, HighsLogType::kError,
+                 "Cannot transform solution to presolved space with presolve "
+                 "status: %s\n",
+                 presolveStatusToString(model_presolve_status_).c_str());
+    return HighsStatus::kError;
+  }
+
+  // Check that solution is valid and has the right size
+  if (!solution.value_valid) {
+    highsLogUser(options_.log_options, HighsLogType::kError,
+                 "Solution provided to presolveSol is not valid\n");
+    return HighsStatus::kError;
+  }
+
+  if (HighsInt(solution.col_value.size()) != model_.lp_.num_col_) {
+    highsLogUser(options_.log_options, HighsLogType::kError,
+                 "Solution provided to presolveSol has %d columns but model "
+                 "has %d columns\n",
+                 int(solution.col_value.size()), int(model_.lp_.num_col_));
+    return HighsStatus::kError;
+  }
+
+  // Transform the solution to presolved space
+  std::vector<double> reduced_col_value =
+      presolve_.data_.postSolveStack.getReducedPrimalSolution(
+          solution.col_value);
+
+  // Set up the presolved solution
+  presolved_solution.clear();
+  presolved_solution.col_value = reduced_col_value;
+  presolved_solution.value_valid = true;
+  presolved_solution.dual_valid = false;
+
+  // Compute row values for presolved solution
+  const HighsLp& presolved_lp = presolve_.getReducedProblem();
+  presolved_solution.row_value.assign(presolved_lp.num_row_, 0);
+  calculateRowValuesQuad(presolved_lp, presolved_solution);
+
+  highsLogDev(options_.log_options, HighsLogType::kInfo,
+              "Solution transformed from %d columns to %d columns\n",
+              int(model_.lp_.num_col_), int(reduced_col_value.size()));
+
+  return HighsStatus::kOk;
+}
+
+HighsStatus Highs::presolveSol(const std::vector<double>& col_value,
+                               std::vector<double>& presolved_col_value) {
+  // Check that presolve has been run
+  const bool can_run_presolve_sol =
+      model_presolve_status_ == HighsPresolveStatus::kReduced ||
+      model_presolve_status_ == HighsPresolveStatus::kReducedToEmpty ||
+      model_presolve_status_ == HighsPresolveStatus::kNotReduced;
+  if (!can_run_presolve_sol) {
+    highsLogUser(options_.log_options, HighsLogType::kError,
+                 "Cannot transform solution to presolved space with presolve "
+                 "status: %s\n",
+                 presolveStatusToString(model_presolve_status_).c_str());
+    return HighsStatus::kError;
+  }
+
+  // Check that col_value has the right size
+  if (HighsInt(col_value.size()) != model_.lp_.num_col_) {
+    highsLogUser(options_.log_options, HighsLogType::kError,
+                 "col_value provided to presolveSol has %d columns but model "
+                 "has %d columns\n",
+                 int(col_value.size()), int(model_.lp_.num_col_));
+    return HighsStatus::kError;
+  }
+
+  // Transform the solution to presolved space
+  presolved_col_value =
+      presolve_.data_.postSolveStack.getReducedPrimalSolution(col_value);
+
+  highsLogDev(options_.log_options, HighsLogType::kInfo,
+              "Column values transformed from %d columns to %d columns\n",
+              int(model_.lp_.num_col_), int(presolved_col_value.size()));
+
+  return HighsStatus::kOk;
+}
+
 HighsStatus Highs::writeSolution(const std::string& filename,
                                  const HighsInt style) {
   HighsStatus return_status = HighsStatus::kOk;
