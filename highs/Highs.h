@@ -18,9 +18,27 @@
 #include "lp_data/HighsLpUtils.h"
 #include "lp_data/HighsRanging.h"
 #include "lp_data/HighsSolutionDebug.h"
+#include "mip/HighsDomainChange.h"
 #include "model/HighsModel.h"
 #include "presolve/ICrash.h"
 #include "presolve/PresolveComponent.h"
+
+/**
+ * @brief Data structure for storing implications discovered during MIP presolve
+ */
+struct HighsImplicationsData {
+  bool valid = false;
+  HighsInt num_col = 0;
+  // implications[2*col + val] contains implications for fixing column col to
+  // value val (0 or 1)
+  std::vector<std::vector<HighsDomainChange>> implications;
+
+  void clear() {
+    valid = false;
+    num_col = 0;
+    implications.clear();
+  }
+};
 
 /**
  * @brief Return the version
@@ -474,6 +492,49 @@ class Highs {
   const HighsInt* getPresolveOrigRowsIndex() const {
     return presolve_.data_.postSolveStack.getOrigRowsIndex();
   }
+
+  /**
+   * @brief Check if implications data is available from MIP presolve
+   */
+  bool hasImplications() const { return implications_data_.valid; }
+
+  /**
+   * @brief Get the number of columns in the presolved model for which
+   * implications may be stored
+   */
+  HighsInt getImplicationsNumCol() const { return implications_data_.num_col; }
+
+  /**
+   * @brief Get the number of implications for fixing a binary variable to a
+   * value. Column index refers to the presolved model. Use
+   * getPresolveOrigColsIndex() to map between presolved and original indices.
+   *
+   * @param col Column index in the presolved model
+   * @param val Value (0 or 1)
+   * @return Number of implications, or -1 if not available or invalid
+   */
+  HighsInt getNumImplications(const HighsInt col, const HighsInt val) const;
+
+  /**
+   * @brief Get the implications for fixing a binary variable to a value.
+   * Column indices refer to the presolved model. Use getPresolveOrigColsIndex()
+   * to map between presolved and original indices.
+   *
+   * @param col Column index in the presolved model
+   * @param val Value (0 or 1)
+   * @param num_implications Output: number of implications returned
+   * @param implication_col Array of column indices of implied bounds (or
+   * nullptr)
+   * @param implication_boundtype Array of bound types: 0=lower, 1=upper (or
+   * nullptr)
+   * @param implication_boundval Array of bound values (or nullptr)
+   * @return HighsStatus indicating success or failure
+   */
+  HighsStatus getImplications(const HighsInt col, const HighsInt val,
+                              HighsInt* num_implications,
+                              HighsInt* implication_col = nullptr,
+                              HighsInt* implication_boundtype = nullptr,
+                              double* implication_boundval = nullptr) const;
 
   /**
    * @brief Return an LP associated with a MIP and its solution, with
@@ -1540,6 +1601,8 @@ class Highs {
   HEkk ekk_instance_;
 
   HighsPresolveLog presolve_log_;
+
+  HighsImplicationsData implications_data_;
 
   HighsSubSolverCallTime sub_solver_call_time_;
 

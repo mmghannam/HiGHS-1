@@ -157,6 +157,9 @@ const HighsInt kHighsIisStatusInConflict = 0;
 const HighsInt kHighsIisStatusNotInConflict = 1;
 const HighsInt kHighsIisStatusMaybeInConflict = 2;
 
+const HighsInt kHighsImplicationBoundTypeLower = 0;
+const HighsInt kHighsImplicationBoundTypeUpper = 1;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -2295,6 +2298,74 @@ HighsInt Highs_getFixedLp(const void* highs, const HighsInt a_format,
                           double* col_upper, double* row_lower,
                           double* row_upper, HighsInt* a_start,
                           HighsInt* a_index, double* a_value);
+
+/**
+ * Check if implications data is available from MIP presolve.
+ *
+ * @param highs  A pointer to the Highs instance.
+ *
+ * @returns 1 if implications are available, 0 otherwise.
+ */
+HighsInt Highs_hasImplications(const void* highs);
+
+/**
+ * Get the number of columns in the presolved model for which implications
+ * may be stored.
+ *
+ * @param highs  A pointer to the Highs instance.
+ *
+ * @returns The number of columns, or 0 if implications are not available.
+ */
+HighsInt Highs_getImplicationsNumCol(const void* highs);
+
+/**
+ * Get the number of implications for fixing a binary variable to a value.
+ *
+ * Implications are discovered during MIP presolve probing. The column index
+ * refers to the presolved model. Use the presolve column index mapping to
+ * translate between presolved and original column indices.
+ *
+ * @param highs            A pointer to the Highs instance.
+ * @param col              Column index in the presolved model.
+ * @param val              Value to fix the variable to (0 or 1).
+ * @param num_implications Output: number of implications.
+ *
+ * @returns A `kHighsStatus` constant indicating whether the call succeeded.
+ */
+HighsInt Highs_getNumImplications(const void* highs, const HighsInt col,
+                                  const HighsInt val, HighsInt* num_implications);
+
+/**
+ * Get the implications for fixing a binary variable to a value.
+ *
+ * Implications are discovered during MIP presolve probing. The column indices
+ * refer to the presolved model. Use the presolve column index mapping to
+ * translate between presolved and original column indices.
+ *
+ * Before calling this function, call `Highs_getNumImplications` to determine
+ * the required array sizes.
+ *
+ * @param highs                  A pointer to the Highs instance.
+ * @param col                    Column index in the presolved model.
+ * @param val                    Value to fix the variable to (0 or 1).
+ * @param num_implications       Output: number of implications returned.
+ * @param implication_col        Array to receive column indices of implied
+ *                               bounds. Must be pre-allocated to size
+ *                               num_implications.
+ * @param implication_boundtype  Array to receive bound types
+ *                               (`kHighsImplicationBoundTypeLower` or
+ *                               `kHighsImplicationBoundTypeUpper`). Must be
+ *                               pre-allocated to size num_implications.
+ * @param implication_boundval   Array to receive bound values. Must be
+ *                               pre-allocated to size num_implications.
+ *
+ * @returns A `kHighsStatus` constant indicating whether the call succeeded.
+ */
+HighsInt Highs_getImplications(const void* highs, const HighsInt col,
+                               const HighsInt val, HighsInt* num_implications,
+                               HighsInt* implication_col,
+                               HighsInt* implication_boundtype,
+                               double* implication_boundval);
 
 /**
  * Set a primal (and possibly dual) solution as a starting point, then run

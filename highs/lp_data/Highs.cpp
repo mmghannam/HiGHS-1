@@ -25,6 +25,7 @@
 #include "lp_data/HighsLpSolverObject.h"
 #include "lp_data/HighsSolve.h"
 #include "mip/HighsMipSolver.h"
+#include "mip/HighsMipSolverData.h"
 #include "model/HighsHessianUtils.h"
 #include "parallel/HighsParallel.h"
 #include "presolve/ICrashX.h"
@@ -1958,6 +1959,54 @@ HighsStatus Highs::getStandardFormLp(HighsInt& num_col, HighsInt& num_row,
   return HighsStatus::kOk;
 }
 
+HighsInt Highs::getNumImplications(const HighsInt col,
+                                   const HighsInt val) const {
+  if (!implications_data_.valid) return -1;
+  if (col < 0 || col >= implications_data_.num_col) return -1;
+  if (val != 0 && val != 1) return -1;
+
+  HighsInt loc = 2 * col + val;
+  return static_cast<HighsInt>(implications_data_.implications[loc].size());
+}
+
+HighsStatus Highs::getImplications(const HighsInt col, const HighsInt val,
+                                   HighsInt* num_implications,
+                                   HighsInt* implication_col,
+                                   HighsInt* implication_boundtype,
+                                   double* implication_boundval) const {
+  if (!implications_data_.valid) {
+    highsLogUser(options_.log_options, HighsLogType::kError,
+                 "Implications data not available\n");
+    return HighsStatus::kError;
+  }
+  if (col < 0 || col >= implications_data_.num_col) {
+    highsLogUser(options_.log_options, HighsLogType::kError,
+                 "Column index %d out of range [0, %d)\n", (int)col,
+                 (int)implications_data_.num_col);
+    return HighsStatus::kError;
+  }
+  if (val != 0 && val != 1) {
+    highsLogUser(options_.log_options, HighsLogType::kError,
+                 "Value must be 0 or 1, got %d\n", (int)val);
+    return HighsStatus::kError;
+  }
+
+  HighsInt loc = 2 * col + val;
+  const auto& implics = implications_data_.implications[loc];
+  *num_implications = static_cast<HighsInt>(implics.size());
+
+  if (implication_col && implication_boundtype && implication_boundval) {
+    for (size_t i = 0; i < implics.size(); ++i) {
+      implication_col[i] = implics[i].column;
+      implication_boundtype[i] =
+          (implics[i].boundtype == HighsBoundType::kLower) ? 0 : 1;
+      implication_boundval[i] = implics[i].boundval;
+    }
+  }
+
+  return HighsStatus::kOk;
+}
+
 HighsStatus Highs::getFixedLp(HighsLp& lp) const {
   if (!this->model_.lp_.isMip()) {
     highsLogUser(options_.log_options, HighsLogType::kError,
@@ -3773,6 +3822,7 @@ void Highs::invalidateSolverData() {
   invalidateBasis();
   invalidateEkk();
   invalidateIis();
+  implications_data_.clear();
 }
 
 void Highs::invalidateSolverDualData() {
@@ -4172,6 +4222,26 @@ HighsStatus Highs::callSolveMip() {
   HighsLp& lp = has_semi_variables ? use_lp : model_.lp_;
   HighsMipSolver solver(callback_, options_, lp, solution_);
   solver.run();
+
+  // Capture implications data before solver is destroyed
+  if (solver.mipdata_) {
+    auto& mip_implications = solver.mipdata_->implications;
+    implications_data_.num_col = solver.numCol();
+    implications_data_.implications.resize(2 *
+                                           static_cast<size_t>(solver.numCol()));
+    for (HighsInt col = 0; col < solver.numCol(); col++) {
+      for (int val = 0; val <= 1; val++) {
+        if (mip_implications.implicationsCached(col, val)) {
+          bool infeasible;
+          const auto& impl =
+              mip_implications.getImplications(col, val, infeasible);
+          implications_data_.implications[2 * col + val] = impl;
+        }
+      }
+    }
+    implications_data_.valid = true;
+  }
+
   options_.log_dev_level = log_dev_level;
   // Set the return_status, model status and, for completeness, scaled
   // model status

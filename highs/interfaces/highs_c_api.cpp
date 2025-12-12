@@ -1313,6 +1313,36 @@ HighsInt Highs_getFixedLp(const void* highs, const HighsInt a_format,
   return status;
 }
 
+HighsInt Highs_hasImplications(const void* highs) {
+  return ((Highs*)highs)->hasImplications() ? 1 : 0;
+}
+
+HighsInt Highs_getImplicationsNumCol(const void* highs) {
+  return ((Highs*)highs)->getImplicationsNumCol();
+}
+
+HighsInt Highs_getNumImplications(const void* highs, const HighsInt col,
+                                  const HighsInt val,
+                                  HighsInt* num_implications) {
+  HighsInt result = ((Highs*)highs)->getNumImplications(col, val);
+  if (result < 0) {
+    *num_implications = 0;
+    return kHighsStatusError;
+  }
+  *num_implications = result;
+  return kHighsStatusOk;
+}
+
+HighsInt Highs_getImplications(const void* highs, const HighsInt col,
+                               const HighsInt val, HighsInt* num_implications,
+                               HighsInt* implication_col,
+                               HighsInt* implication_boundtype,
+                               double* implication_boundval) {
+  return (HighsInt)((Highs*)highs)->getImplications(
+      col, val, num_implications, implication_col, implication_boundtype,
+      implication_boundval);
+}
+
 HighsInt Highs_getPresolvedLp(const void* highs, const HighsInt a_format,
                               HighsInt* num_col, HighsInt* num_row,
                               HighsInt* num_nz, HighsInt* sense, double* offset,
