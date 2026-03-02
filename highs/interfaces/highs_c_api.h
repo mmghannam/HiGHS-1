@@ -2390,6 +2390,20 @@ HighsInt Highs_getImplications(const void* highs, const HighsInt col,
                                double* implication_boundval);
 
 /**
+ * Check if a variable was probed for a given value during MIP presolve.
+ * Returns 1 if probing was performed (even if no implications were found),
+ * 0 otherwise.
+ *
+ * @param highs  A pointer to the Highs instance.
+ * @param col    Column index in the presolved model.
+ * @param val    Value to check (0 or 1).
+ *
+ * @returns 1 if probed, 0 otherwise.
+ */
+HighsInt Highs_implicationsCached(const void* highs, const HighsInt col,
+                                  const HighsInt val);
+
+/**
  * Set a primal (and possibly dual) solution as a starting point, then run
  * crossover to compute a basic feasible solution.
  *

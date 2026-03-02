@@ -5293,6 +5293,15 @@ HighsModelStatus HPresolve::run(HighsPostsolveStack& postsolve_stack) {
   shrinkProblem(postsolve_stack);
 
   if (mipsolver != nullptr) {
+    // Restore computed flags from numProbes after final shrinkProblem
+    // (rebuild clears them but numProbes is remapped correctly)
+    auto& impl = mipsolver->mipdata_->implications;
+    for (HighsInt col = 0; col < model->num_col_; col++) {
+      if (numProbes[col] > 0) {
+        impl.markComputed(col, false);
+        impl.markComputed(col, true);
+      }
+    }
     mipsolver->mipdata_->cliquetable.setPresolveFlag(false);
     mipsolver->mipdata_->cliquetable.setMaxEntries(numNonzeros());
     mipsolver->mipdata_->domain.addCutpool(mipsolver->mipdata_->cutpool);

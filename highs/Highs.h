@@ -32,11 +32,14 @@ struct HighsImplicationsData {
   // implications[2*col + val] contains implications for fixing column col to
   // value val (0 or 1)
   std::vector<std::vector<HighsDomainChange>> implications;
+  // computed[2*col + val] = true if the variable was probed for that value
+  std::vector<bool> computed;
 
   void clear() {
     valid = false;
     num_col = 0;
     implications.clear();
+    computed.clear();
   }
 };
 
@@ -530,6 +533,19 @@ class Highs {
    * @brief Check if implications data is available from MIP presolve
    */
   bool hasImplications() const { return implications_data_.valid; }
+
+  /**
+   * @brief Check if a variable was probed for a given value during MIP
+   * presolve. Returns true if probing was performed, even if no implications
+   * were found.
+   */
+  bool implicationsCached(HighsInt col, HighsInt val) const {
+    if (!implications_data_.valid) return false;
+    HighsInt loc = 2 * col + val;
+    if (loc < 0 || loc >= static_cast<HighsInt>(implications_data_.computed.size()))
+      return false;
+    return implications_data_.computed[loc];
+  }
 
   /**
    * @brief Get the number of columns in the presolved model for which

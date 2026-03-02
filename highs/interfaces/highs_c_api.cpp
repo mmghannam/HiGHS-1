@@ -1381,6 +1381,11 @@ HighsInt Highs_getImplications(const void* highs, const HighsInt col,
       implication_boundval);
 }
 
+HighsInt Highs_implicationsCached(const void* highs, const HighsInt col,
+                                  const HighsInt val) {
+  return ((Highs*)highs)->implicationsCached(col, val) ? 1 : 0;
+}
+
 HighsInt Highs_getPresolvedLp(const void* highs, const HighsInt a_format,
                               HighsInt* num_col, HighsInt* num_row,
                               HighsInt* num_nz, HighsInt* sense, double* offset,

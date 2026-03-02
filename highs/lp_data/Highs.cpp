@@ -3797,6 +3797,27 @@ HighsPresolveStatus Highs::runPresolve(const bool force_lp_presolve,
     presolve_.data_.reduced_lp_ = solver.getPresolvedModel();
     presolve_.data_.postSolveStack = solver.getPostsolveStack();
     presolve_.presolve_status_ = presolve_return_status;
+    // Capture implications before solver goes out of scope
+    if (solver.mipdata_) {
+      auto& mip_implications = solver.mipdata_->implications;
+      implications_data_.num_col = solver.numCol();
+      implications_data_.implications.resize(
+          2 * static_cast<size_t>(solver.numCol()));
+      implications_data_.computed.resize(
+          2 * static_cast<size_t>(solver.numCol()), false);
+      for (HighsInt col = 0; col < solver.numCol(); col++) {
+        for (int val = 0; val <= 1; val++) {
+          if (mip_implications.implicationsCached(col, val)) {
+            implications_data_.computed[2 * col + val] = true;
+            bool infeasible;
+            const auto& impl =
+                mip_implications.getImplications(col, val, infeasible);
+            implications_data_.implications[2 * col + val] = impl;
+          }
+        }
+      }
+      implications_data_.valid = true;
+    }
     //    presolve_.data_.presolve_log_ =
   } else {
     // Use presolve for LP
@@ -4317,9 +4338,12 @@ HighsStatus Highs::callSolveMip() {
     implications_data_.num_col = solver.numCol();
     implications_data_.implications.resize(2 *
                                            static_cast<size_t>(solver.numCol()));
+    implications_data_.computed.resize(
+        2 * static_cast<size_t>(solver.numCol()), false);
     for (HighsInt col = 0; col < solver.numCol(); col++) {
       for (int val = 0; val <= 1; val++) {
         if (mip_implications.implicationsCached(col, val)) {
+          implications_data_.computed[2 * col + val] = true;
           bool infeasible;
           const auto& impl =
               mip_implications.getImplications(col, val, infeasible);
