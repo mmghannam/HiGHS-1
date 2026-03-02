@@ -458,6 +458,12 @@ void HighsImplications::rebuild(HighsInt ncols,
   oldvlbs.swap(vlbs);
   oldvubs.swap(vubs);
 
+  // Save old computed flags before clearing (implications data is discarded
+  // because bound values may become stale after further presolve reductions)
+  std::vector<bool> oldComputed(implications.size(), false);
+  for (size_t i = 0; i < implications.size(); i++)
+    oldComputed[i] = implications[i].computed;
+
   colsubstituted.clear();
   colsubstituted.shrink_to_fit();
   implications.clear();
@@ -509,10 +515,15 @@ void HighsImplications::rebuild(HighsInt ncols,
       addVLB(newi, newVlbCol, vlb.coef, vlb.constant);
     });
 
-    // todo also add old implications once implications can be added
-    // incrementally for now we discard the old implications as they might be
-    // weaker then newly computed ones and adding them would block computation
-    // of new implications
+    // Carry over computed flags so that the presolve-only path knows
+    // which variables were probed.  The actual implication data is
+    // discarded (it may reference stale bounds after further reductions).
+    for (int val = 0; val <= 1; val++) {
+      HighsInt oldloc = 2 * i + val;
+      if (oldloc >= static_cast<HighsInt>(oldComputed.size())) continue;
+      if (oldComputed[oldloc])
+        implications[2 * newi + val].computed = true;
+    }
   }
 }
 

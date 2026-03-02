@@ -120,11 +120,6 @@ class HighsImplications {
     return implications[loc].computed;
   }
 
-  void markComputed(HighsInt col, bool val) {
-    HighsInt loc = 2 * col + val;
-    implications[loc].computed = true;
-  }
-
   bool tooManyVarBounds() const { return numVarBounds >= maxVarBounds; }
 
   void addVUB(HighsInt col, HighsInt vubcol, double vubcoef,
