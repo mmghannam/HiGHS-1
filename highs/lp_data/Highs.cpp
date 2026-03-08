@@ -2007,6 +2007,31 @@ HighsStatus Highs::getImplications(const HighsInt col, const HighsInt val,
   return HighsStatus::kOk;
 }
 
+HighsStatus Highs::getCliques(HighsInt* num_cliques, HighsInt* num_entries,
+                              HighsInt* clique_start, HighsInt* clique_col,
+                              HighsInt* clique_val) const {
+  if (!cliques_data_.valid) {
+    highsLogUser(options_.log_options, HighsLogType::kError,
+                 "Clique data not available\n");
+    return HighsStatus::kError;
+  }
+  *num_cliques = cliques_data_.num_cliques;
+  HighsInt total = cliques_data_.num_cliques > 0
+                       ? cliques_data_.clique_start[cliques_data_.num_cliques]
+                       : 0;
+  *num_entries = total;
+
+  if (clique_start && clique_col && clique_val) {
+    for (HighsInt i = 0; i <= cliques_data_.num_cliques; i++)
+      clique_start[i] = cliques_data_.clique_start[i];
+    for (HighsInt i = 0; i < total; i++) {
+      clique_col[i] = cliques_data_.clique_col[i];
+      clique_val[i] = cliques_data_.clique_val[i];
+    }
+  }
+  return HighsStatus::kOk;
+}
+
 HighsStatus Highs::getFixedLp(HighsLp& lp) const {
   if (!this->model_.lp_.isMip()) {
     highsLogUser(options_.log_options, HighsLogType::kError,
@@ -3817,6 +3842,17 @@ HighsPresolveStatus Highs::runPresolve(const bool force_lp_presolve,
         }
       }
       implications_data_.valid = true;
+      // Capture cliques before solver goes out of scope
+      auto& cliquetable = solver.mipdata_->cliquetable;
+      if (cliquetable.numCliques() > 0) {
+        cliques_data_.clear();
+        cliquetable.getCliquesData(cliques_data_.clique_start,
+                                   cliques_data_.clique_col,
+                                   cliques_data_.clique_val);
+        cliques_data_.num_cliques =
+            static_cast<HighsInt>(cliques_data_.clique_start.size()) - 1;
+        cliques_data_.valid = cliques_data_.num_cliques > 0;
+      }
     }
     //    presolve_.data_.presolve_log_ =
   } else {
@@ -3932,6 +3968,7 @@ void Highs::invalidateSolverData() {
   invalidateEkk();
   invalidateIis();
   implications_data_.clear();
+  cliques_data_.clear();
 }
 
 void Highs::invalidateSolverDualData() {
@@ -4352,6 +4389,17 @@ HighsStatus Highs::callSolveMip() {
       }
     }
     implications_data_.valid = true;
+    // Capture cliques before solver goes out of scope
+    auto& cliquetable = solver.mipdata_->cliquetable;
+    if (cliquetable.numCliques() > 0) {
+      cliques_data_.clear();
+      cliquetable.getCliquesData(cliques_data_.clique_start,
+                                 cliques_data_.clique_col,
+                                 cliques_data_.clique_val);
+      cliques_data_.num_cliques =
+          static_cast<HighsInt>(cliques_data_.clique_start.size()) - 1;
+      cliques_data_.valid = cliques_data_.num_cliques > 0;
+    }
   }
 
   options_.log_dev_level = log_dev_level;

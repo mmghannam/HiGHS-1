@@ -2404,6 +2404,46 @@ HighsInt Highs_implicationsCached(const void* highs, const HighsInt col,
                                   const HighsInt val);
 
 /**
+ * Check if clique data is available from MIP presolve.
+ *
+ * @param highs  A pointer to the Highs instance.
+ *
+ * @returns 1 if cliques are available, 0 otherwise.
+ */
+HighsInt Highs_hasCliques(const void* highs);
+
+/**
+ * Get the number of cliques discovered during MIP presolve.
+ *
+ * @param highs  A pointer to the Highs instance.
+ *
+ * @returns The number of cliques, or 0 if clique data is not available.
+ */
+HighsInt Highs_getNumCliques(const void* highs);
+
+/**
+ * Get clique data in CSR format.
+ *
+ * Column indices refer to the presolved model. Use the presolve column
+ * index mapping to translate between presolved and original column indices.
+ *
+ * Call with NULL output arrays to query num_cliques and num_entries first,
+ * then allocate and call again.
+ *
+ * @param highs         A pointer to the Highs instance.
+ * @param num_cliques   Output: number of cliques.
+ * @param num_entries   Output: total number of entries across all cliques.
+ * @param clique_start  Array of size num_cliques+1 with CSR offsets (or NULL).
+ * @param clique_col    Array of column indices (or NULL).
+ * @param clique_val    Array of values 0/1 (or NULL).
+ *
+ * @returns A `kHighsStatus` constant indicating whether the call succeeded.
+ */
+HighsInt Highs_getCliques(const void* highs, HighsInt* num_cliques,
+                          HighsInt* num_entries, HighsInt* clique_start,
+                          HighsInt* clique_col, HighsInt* clique_val);
+
+/**
  * Set a primal (and possibly dual) solution as a starting point, then run
  * crossover to compute a basic feasible solution.
  *

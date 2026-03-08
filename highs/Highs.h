@@ -24,6 +24,32 @@
 #include "presolve/PresolveComponent.h"
 
 /**
+ * @brief Data structure for storing cliques discovered during MIP presolve
+ *
+ * Cliques are stored in a flat CSR-like format. Each clique i spans
+ * entries clique_start[i] .. clique_start[i+1] in the col/val arrays.
+ * A CliqueVar(col, val) means "variable col takes value val"; the clique
+ * constraint says at most one of these can be true simultaneously.
+ */
+struct HighsCliquesData {
+  bool valid = false;
+  HighsInt num_cliques = 0;
+  // clique_start has num_cliques+1 entries (CSR offsets)
+  std::vector<HighsInt> clique_start;
+  // col and val arrays have clique_start[num_cliques] entries total
+  std::vector<HighsInt> clique_col;
+  std::vector<HighsInt> clique_val;
+
+  void clear() {
+    valid = false;
+    num_cliques = 0;
+    clique_start.clear();
+    clique_col.clear();
+    clique_val.clear();
+  }
+};
+
+/**
  * @brief Data structure for storing implications discovered during MIP presolve
  */
 struct HighsImplicationsData {
@@ -584,6 +610,35 @@ class Highs {
                               HighsInt* implication_col = nullptr,
                               HighsInt* implication_boundtype = nullptr,
                               double* implication_boundval = nullptr) const;
+
+  /**
+   * @brief Check if clique data is available from MIP presolve
+   */
+  bool hasCliques() const { return cliques_data_.valid; }
+
+  /**
+   * @brief Get the number of cliques discovered during MIP presolve
+   */
+  HighsInt getNumCliques() const { return cliques_data_.num_cliques; }
+
+  /**
+   * @brief Get clique data in CSR format.
+   *
+   * Column indices refer to the presolved model. Use
+   * getPresolveOrigColsIndex() to map between presolved and original indices.
+   *
+   * @param num_cliques Output: number of cliques
+   * @param num_entries Output: total number of entries across all cliques
+   * @param clique_start Array of size num_cliques+1 with CSR offsets (or
+   * nullptr to query sizes only)
+   * @param clique_col Array of column indices (or nullptr)
+   * @param clique_val Array of values 0/1 (or nullptr)
+   * @return HighsStatus indicating success or failure
+   */
+  HighsStatus getCliques(HighsInt* num_cliques, HighsInt* num_entries,
+                         HighsInt* clique_start = nullptr,
+                         HighsInt* clique_col = nullptr,
+                         HighsInt* clique_val = nullptr) const;
 
   /**
    * @brief Return an LP associated with a MIP and its solution, with
@@ -1652,6 +1707,7 @@ class Highs {
   HighsPresolveLog presolve_log_;
 
   HighsImplicationsData implications_data_;
+  HighsCliquesData cliques_data_;
 
   HighsSubSolverCallTime sub_solver_call_time_;
 

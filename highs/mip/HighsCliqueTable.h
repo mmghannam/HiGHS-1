@@ -308,6 +308,28 @@ class HighsCliqueTable {
 
   HighsInt numCliques() const { return cliques.size() - freeslots.size(); }
 
+  /// Export all active cliques in CSR format.
+  /// clique_start will have num_active_cliques+1 entries.
+  /// clique_col and clique_val will have the total number of entries.
+  void getCliquesData(std::vector<HighsInt>& clique_start,
+                      std::vector<HighsInt>& clique_col,
+                      std::vector<HighsInt>& clique_val) const {
+    std::set<HighsInt> freeSet(freeslots.begin(), freeslots.end());
+    clique_start.clear();
+    clique_col.clear();
+    clique_val.clear();
+    clique_start.push_back(0);
+    for (HighsInt i = 0; i < static_cast<HighsInt>(cliques.size()); i++) {
+      if (freeSet.count(i)) continue;
+      const Clique& c = cliques[i];
+      for (HighsInt j = c.start; j < c.end; j++) {
+        clique_col.push_back(static_cast<HighsInt>(cliqueentries[j].col));
+        clique_val.push_back(static_cast<HighsInt>(cliqueentries[j].val));
+      }
+      clique_start.push_back(static_cast<HighsInt>(clique_col.size()));
+    }
+  }
+
   HighsInt numCliques(CliqueVar v) const { return numcliquesvar[v.index()]; }
 
   HighsInt numCliques(HighsInt col, bool val) const {
