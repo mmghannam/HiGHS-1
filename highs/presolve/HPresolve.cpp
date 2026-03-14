@@ -1040,6 +1040,7 @@ void HPresolve::shrinkProblem(HighsPostsolveStack& postsolve_stack) {
 
 HPresolve::Result HPresolve::dominatedColumns(
     HighsPostsolveStack& postsolve_stack) {
+  postsolve_stack.setCurrentRule(kPresolveRuleDominatedCol);
   // See section 6.4 "Dominated columns", Achterberg et al., Presolve Reductions
   // in Mixed Integer Programming, INFORMS Journal on Computing 32(2):473-506.
   // See also Gamrath, G., Koch, T., Martin, A. et al., Progress in presolving
@@ -1408,6 +1409,7 @@ HPresolve::Result HPresolve::dominatedColumns(
 }
 
 HPresolve::Result HPresolve::runProbing(HighsPostsolveStack& postsolve_stack) {
+  postsolve_stack.setCurrentRule(kPresolveRuleProbing);
   mipsolver->analysis_.mipTimerStart(kMipClockProbingPresolve);
   probingEarlyAbort = false;
   if (numDeletedCols + numDeletedRows != 0) shrinkProblem(postsolve_stack);
@@ -1729,6 +1731,7 @@ HPresolve::Result HPresolve::runProbing(HighsPostsolveStack& postsolve_stack) {
 
 HPresolve::Result HPresolve::liftingForProbing(
     HighsPostsolveStack& postsolve_stack) {
+  postsolve_stack.setCurrentRule(kPresolveRuleProbing);
   // this method implements lifting for probing as described by Achterberg et
   // al. (2019) Presolve Reductions in Mixed Integer Programming. INFORMS
   // Journal on Computing 32(2):473-506.
@@ -2306,6 +2309,7 @@ void HPresolve::scaleMIP(HighsPostsolveStack& postsolve_stack) {
 
 HPresolve::Result HPresolve::applyConflictGraphSubstitutions(
     HighsPostsolveStack& postsolve_stack) {
+  postsolve_stack.setCurrentRule(kPresolveRuleDoubletonEquation);
   HighsCliqueTable& cliquetable = mipsolver->mipdata_->cliquetable;
   HighsImplications& implications = mipsolver->mipdata_->implications;
   for (const auto& substitution : implications.substitutions) {
@@ -2854,6 +2858,7 @@ void HPresolve::toCSR(std::vector<double>& ARval,
 HPresolve::Result HPresolve::doubletonEq(HighsPostsolveStack& postsolve_stack,
                                          HighsInt row,
                                          HighsPostsolveStack::RowType rowType) {
+  postsolve_stack.setCurrentRule(kPresolveRuleDoubletonEquation);
   assert(analysis_.allow_rule_[kPresolveRuleDoubletonEquation]);
   const bool logging_on = analysis_.logging_on_;
   if (logging_on)
@@ -3020,6 +3025,7 @@ HPresolve::Result HPresolve::doubletonEq(HighsPostsolveStack& postsolve_stack,
 
 HPresolve::Result HPresolve::singletonRow(HighsPostsolveStack& postsolve_stack,
                                           HighsInt row) {
+  postsolve_stack.setCurrentRule(kPresolveRuleSingletonRow);
   const bool logging_on = analysis_.logging_on_;
   if (logging_on) analysis_.startPresolveRuleLog(kPresolveRuleSingletonRow);
   assert(!rowDeleted[row]);
@@ -3163,6 +3169,7 @@ HPresolve::Result HPresolve::singletonRow(HighsPostsolveStack& postsolve_stack,
 
 HPresolve::Result HPresolve::singletonCol(HighsPostsolveStack& postsolve_stack,
                                           HighsInt col) {
+  postsolve_stack.setCurrentRule(kPresolveRuleFixedCol);
   assert(colsize[col] == 1);
   assert(!colDeleted[col]);
   HighsInt nzPos = colhead[col];
@@ -3210,6 +3217,7 @@ HPresolve::Result HPresolve::singletonCol(HighsPostsolveStack& postsolve_stack,
     }
     const bool logging_on = analysis_.logging_on_;
 
+    postsolve_stack.setCurrentRule(kPresolveRuleFreeColSubstitution);
     if (logging_on)
       analysis_.startPresolveRuleLog(kPresolveRuleFreeColSubstitution);
 
@@ -3232,6 +3240,7 @@ HPresolve::Result HPresolve::singletonCol(HighsPostsolveStack& postsolve_stack,
 void HPresolve::substituteFreeCol(HighsPostsolveStack& postsolve_stack,
                                   HighsInt row, HighsInt col,
                                   bool relaxRowDualBounds) {
+  postsolve_stack.setCurrentRule(kPresolveRuleFreeColSubstitution);
   assert(!rowDeleted[row]);
   assert(!colDeleted[col]);
   assert(isDualImpliedFree(row));
@@ -3269,6 +3278,7 @@ HPresolve::Result HPresolve::rowPresolve(HighsPostsolveStack& postsolve_stack,
       // row is redundant
       int presolveRule =
           rowsize[row] != 0 ? kPresolveRuleRedundantRow : kPresolveRuleEmptyRow;
+      postsolve_stack.setCurrentRule(presolveRule);
       if (logging_on) analysis_.startPresolveRuleLog(presolveRule);
       postsolve_stack.redundantRow(row);
       removeRow(row);
@@ -4120,6 +4130,7 @@ HPresolve::Result HPresolve::rowPresolve(HighsPostsolveStack& postsolve_stack,
 
     if (nfixings != rowsize[row]) return Result::kOk;
 
+    postsolve_stack.setCurrentRule(kPresolveRuleForcingRow);
     if (logging_on) analysis_.startPresolveRuleLog(kPresolveRuleForcingRow);
     postsolve_stack.forcingRow(row, rowVector, rowSide, rowType);
     // already mark the row as deleted, since otherwise it would be
@@ -4211,6 +4222,7 @@ HPresolve::Result HPresolve::rowPresolve(HighsPostsolveStack& postsolve_stack,
 
 HPresolve::Result HPresolve::emptyCol(HighsPostsolveStack& postsolve_stack,
                                       HighsInt col) {
+  postsolve_stack.setCurrentRule(kPresolveRuleEmptyCol);
   const bool logging_on = analysis_.logging_on_;
   if (logging_on) analysis_.startPresolveRuleLog(kPresolveRuleEmptyCol);
   if ((model->col_cost_[col] > 0 && model->col_lower_[col] == -kHighsInf) ||
@@ -4252,6 +4264,7 @@ HPresolve::Result HPresolve::colPresolve(HighsPostsolveStack& postsolve_stack,
       if (std::abs(model->col_lower_[col]) == kHighsInf)
         return Result::kDualInfeasible;
       // remove fixed column
+      postsolve_stack.setCurrentRule(kPresolveRuleFixedCol);
       postsolve_stack.removedFixedCol(col, model->col_lower_[col],
                                       model->col_cost_[col],
                                       getColumnVector(col));
@@ -4364,6 +4377,7 @@ HPresolve::Result HPresolve::detectDominatedCol(
       return Result::kOk;
     // cannot fix to +-infinity -> infeasible
     if (direction * bound == -kHighsInf) return Result::kDualInfeasible;
+    postsolve_stack.setCurrentRule(kPresolveRuleDominatedCol);
     if (logging_on) analysis_.startPresolveRuleLog(kPresolveRuleDominatedCol);
     // fix variable
     if (direction > 0)
@@ -4386,6 +4400,7 @@ HPresolve::Result HPresolve::detectDominatedCol(
     if (direction * dualBound < -options->dual_feasibility_tolerance)
       return Result::kOk;
     if (direction * bound != -kHighsInf) {
+      postsolve_stack.setCurrentRule(kPresolveRuleDominatedCol);
       if (logging_on) analysis_.startPresolveRuleLog(kPresolveRuleDominatedCol);
       // fix variable
       if (direction > 0)
@@ -4414,6 +4429,7 @@ HPresolve::Result HPresolve::detectDominatedCol(
         // (direction = -1).
         // thus, the column dual is zero, and we can remove the column and
         // all its rows
+        postsolve_stack.setCurrentRule(kPresolveRuleForcingCol);
         if (logging_on) analysis_.startPresolveRuleLog(kPresolveRuleForcingCol);
         postsolve_stack.forcingColumn(
             col, getColumnVector(col), model->col_cost_[col], otherBound,
@@ -4462,6 +4478,7 @@ HPresolve::Result HPresolve::detectDominatedCol(
 
 HPresolve::Result HPresolve::dualFixing(HighsPostsolveStack& postsolve_stack,
                                         HighsInt col) {
+  postsolve_stack.setCurrentRule(kPresolveRuleDominatedCol);
   // fix variables or tighten bounds using dual arguments
   // see section 4.4 "Dual fixing, substitution and bound strengthening",
   // Achterberg et al., Presolve Reductions in Mixed Integer Programming,
@@ -5420,6 +5437,7 @@ void HPresolve::computeIntermediateMatrix(std::vector<HighsInt>& flagRow,
 
 HPresolve::Result HPresolve::removeDependentEquations(
     HighsPostsolveStack& postsolve_stack) {
+  postsolve_stack.setCurrentRule(kPresolveRuleDependentEquations);
   assert(analysis_.allow_rule_[kPresolveRuleDependentEquations]);
   const bool logging_on = analysis_.logging_on_;
   if (equations.empty()) return Result::kOk;
@@ -5627,6 +5645,7 @@ HPresolve::Result HPresolve::removeDependentFreeCols(
 }
 
 HPresolve::Result HPresolve::aggregator(HighsPostsolveStack& postsolve_stack) {
+  postsolve_stack.setCurrentRule(kPresolveRuleAggregator);
   assert(analysis_.allow_rule_[kPresolveRuleAggregator]);
   const bool logging_on = analysis_.logging_on_;
   if (logging_on) analysis_.startPresolveRuleLog(kPresolveRuleAggregator);
@@ -6271,6 +6290,7 @@ HPresolve::Result HPresolve::detectImpliedIntegers() {
 
 HPresolve::Result HPresolve::detectParallelRowsAndCols(
     HighsPostsolveStack& postsolve_stack) {
+  postsolve_stack.setCurrentRule(kPresolveRuleParallelRowsAndCols);
   assert(analysis_.allow_rule_[kPresolveRuleParallelRowsAndCols]);
   const bool logging_on = analysis_.logging_on_;
   if (logging_on)
@@ -6969,6 +6989,7 @@ template <typename RowStorageFormat>
 HPresolve::Result HPresolve::equalityRowAddition(
     HighsPostsolveStack& postsolve_stack, HighsInt stayrow, HighsInt removerow,
     double scale, const HighsMatrixSlice<RowStorageFormat>& rowvector) {
+  postsolve_stack.setCurrentRule(kPresolveRuleParallelRowsAndCols);
   // extract non-zero positions
   std::vector<HighsInt> stay_rowpositions;
   getRowPositions(stayrow, stay_rowpositions);
@@ -7205,6 +7226,7 @@ void HPresolve::debug(const HighsLp& lp, const HighsOptions& options) {
 }
 
 HPresolve::Result HPresolve::sparsify(HighsPostsolveStack& postsolve_stack) {
+  postsolve_stack.setCurrentRule(kPresolveRuleSparsify);
   assert(analysis_.allow_rule_[kPresolveRuleSparsify]);
   std::vector<HighsPostsolveStack::Nonzero> sparsifyRows;
   const bool logging_on = analysis_.logging_on_;

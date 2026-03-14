@@ -77,6 +77,12 @@ class HighsDataStack {
 
   void setPosition(size_t position_) { this->position = position_; }
 
+  template <typename T,
+            typename std::enable_if<IS_TRIVIALLY_COPYABLE(T), int>::type = 0>
+  void readAt(size_t pos, T& r) const {
+    std::memcpy(&r, data.data() + pos, sizeof(T));
+  }
+
   size_t getCurrentDataSize() const { return data.size(); }
 };
 

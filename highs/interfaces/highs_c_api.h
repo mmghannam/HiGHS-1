@@ -2513,6 +2513,46 @@ HighsInt Highs_getSymmetryPermutations(const void* highs,
                                        HighsInt* permutations);
 
 /**
+ * Get the number of presolve reductions in the postsolve stack.
+ * Requires `Highs_presolve` to have been called first.
+ *
+ * @param highs  A pointer to the Highs instance.
+ *
+ * @returns The number of reductions, or 0 if presolve has not been run.
+ */
+HighsInt Highs_getNumPresolveReductions(const void* highs);
+
+/**
+ * Get the ordered sequence of presolve reductions.
+ *
+ * Each reduction records the type (0-13), affected column and row in
+ * original-model space (-1 if N/A), and a key numeric value.
+ *
+ * Call with NULL output arrays to query the count via `num_reductions` first,
+ * then allocate and call again.
+ *
+ * @param highs            A pointer to the Highs instance.
+ * @param num_reductions   Output: number of reductions.
+ * @param type             Array of size num_reductions for reduction types (or
+ *                         NULL).
+ * @param col              Array of size num_reductions for column indices (or
+ *                         NULL).
+ * @param row              Array of size num_reductions for row indices (or
+ *                         NULL).
+ * @param value            Array of size num_reductions for numeric values (or
+ *                         NULL).
+ * @param source           Array of size num_reductions for the presolve rule
+ *                         that produced each reduction (PresolveRuleType, or
+ *                         -1 if unknown). May be NULL.
+ *
+ * @returns A `kHighsStatus` constant indicating whether the call succeeded.
+ */
+HighsInt Highs_getPresolveReductions(const void* highs,
+                                     HighsInt* num_reductions, HighsInt* type,
+                                     HighsInt* col, HighsInt* row,
+                                     double* value, HighsInt* source);
+
+/**
  * Set a primal (and possibly dual) solution as a starting point, then run
  * crossover to compute a basic feasible solution.
  *

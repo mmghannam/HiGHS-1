@@ -2211,6 +2211,47 @@ HighsStatus Highs::getSymmetryPermutations(HighsInt* perm_columns,
   return HighsStatus::kOk;
 }
 
+HighsInt Highs::getNumPresolveReductions() const {
+  const bool presolve_run =
+      model_presolve_status_ == HighsPresolveStatus::kReduced ||
+      model_presolve_status_ == HighsPresolveStatus::kReducedToEmpty ||
+      model_presolve_status_ == HighsPresolveStatus::kNotReduced;
+  if (!presolve_run) return 0;
+  return static_cast<HighsInt>(
+      presolve_.data_.postSolveStack.numReductions());
+}
+
+HighsStatus Highs::getPresolveReductions(HighsInt* num_reductions,
+                                         HighsInt* type, HighsInt* col,
+                                         HighsInt* row, double* value,
+                                         HighsInt* source) const {
+  const bool presolve_run =
+      model_presolve_status_ == HighsPresolveStatus::kReduced ||
+      model_presolve_status_ == HighsPresolveStatus::kReducedToEmpty ||
+      model_presolve_status_ == HighsPresolveStatus::kNotReduced;
+  if (!presolve_run) {
+    highsLogUser(options_.log_options, HighsLogType::kError,
+                 "Presolve reductions not available: presolve has not been "
+                 "run\n");
+    return HighsStatus::kError;
+  }
+
+  std::vector<HighsPresolveReduction> reductions;
+  presolve_.data_.postSolveStack.getReductions(reductions);
+  *num_reductions = static_cast<HighsInt>(reductions.size());
+
+  if (type && col && row && value) {
+    for (size_t i = 0; i < reductions.size(); i++) {
+      type[i] = reductions[i].type;
+      col[i] = reductions[i].col;
+      row[i] = reductions[i].row;
+      value[i] = reductions[i].value;
+      if (source) source[i] = reductions[i].source;
+    }
+  }
+  return HighsStatus::kOk;
+}
+
 HighsStatus Highs::getFixedLp(HighsLp& lp) const {
   if (!this->model_.lp_.isMip()) {
     highsLogUser(options_.log_options, HighsLogType::kError,

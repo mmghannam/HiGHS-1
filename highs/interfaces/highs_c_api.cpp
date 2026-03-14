@@ -1429,6 +1429,19 @@ HighsInt Highs_getSymmetryPermutations(const void* highs,
                                                             permutations);
 }
 
+HighsInt Highs_getNumPresolveReductions(const void* highs) {
+  return ((Highs*)highs)->getNumPresolveReductions();
+}
+
+HighsInt Highs_getPresolveReductions(const void* highs,
+                                     HighsInt* num_reductions, HighsInt* type,
+                                     HighsInt* col, HighsInt* row,
+                                     double* value, HighsInt* source) {
+  return (HighsInt)((Highs*)highs)->getPresolveReductions(num_reductions, type,
+                                                          col, row, value,
+                                                          source);
+}
+
 HighsInt Highs_getPresolvedLp(const void* highs, const HighsInt a_format,
                               HighsInt* num_col, HighsInt* num_row,
                               HighsInt* num_nz, HighsInt* sense, double* offset,

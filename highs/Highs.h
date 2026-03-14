@@ -716,6 +716,33 @@ class Highs {
                                       HighsInt* permutations) const;
 
   /**
+   * @brief Get the number of presolve reductions in the postsolve stack.
+   * Requires presolve() to have been called first.
+   */
+  HighsInt getNumPresolveReductions() const;
+
+  /**
+   * @brief Get the ordered sequence of presolve reductions.
+   *
+   * Each reduction records the type (0-13), affected column and row
+   * in original-model space (-1 if N/A), and a key numeric value.
+   *
+   * @param num_reductions  Output: number of reductions returned
+   * @param type   Array of size num_reductions (or nullptr to query count)
+   * @param col    Array of size num_reductions (or nullptr)
+   * @param row    Array of size num_reductions (or nullptr)
+   * @param value  Array of size num_reductions (or nullptr)
+   * @param source Array of size num_reductions for PresolveRuleType (or nullptr)
+   * @return HighsStatus indicating success or failure
+   */
+  HighsStatus getPresolveReductions(HighsInt* num_reductions,
+                                    HighsInt* type = nullptr,
+                                    HighsInt* col = nullptr,
+                                    HighsInt* row = nullptr,
+                                    double* value = nullptr,
+                                    HighsInt* source = nullptr) const;
+
+  /**
    * @brief Return an LP associated with a MIP and its solution, with
    * each integer variable fixed to the value it takes in the MIP
    * solution. If no solution is available, an error is returned.

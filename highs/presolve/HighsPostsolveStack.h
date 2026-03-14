@@ -27,6 +27,17 @@
 #include "util/HighsDataStack.h"
 #include "util/HighsMatrixSlice.h"
 
+/**
+ * @brief Summary of a single presolve reduction from the postsolve stack.
+ */
+struct HighsPresolveReduction {
+  HighsInt type;   // ReductionType enum as int (0-13)
+  HighsInt col;    // affected column in original space (-1 if N/A)
+  HighsInt row;    // affected row in original space (-1 if N/A)
+  double value;    // key numeric value (fix value, scale, rhs, etc.)
+  HighsInt source; // PresolveRuleType (-1 = unknown)
+};
+
 // class HighsOptions;
 namespace presolve {
 class HighsPostsolveStack {
@@ -247,6 +258,8 @@ class HighsPostsolveStack {
 
   HighsDataStack reductionValues;
   std::vector<std::pair<ReductionType, size_t>> reductions;
+  std::vector<int> reductionSources;
+  int currentRule_ = -1;  // PresolveRuleType, -1 = unknown
   std::vector<HighsInt> origColIndex;
   std::vector<HighsInt> origRowIndex;
   std::vector<uint8_t> linearlyTransformable;
@@ -259,9 +272,12 @@ class HighsPostsolveStack {
   void reductionAdded(ReductionType type) {
     size_t position = reductionValues.getCurrentDataSize();
     reductions.emplace_back(type, position);
+    reductionSources.push_back(currentRule_);
   }
 
  public:
+  void setCurrentRule(int rule) { currentRule_ = rule; }
+
   const HighsInt* getOrigRowsIndex() const { return origRowIndex.data(); }
 
   const HighsInt* getOrigColsIndex() const { return origColIndex.data(); }
@@ -936,6 +952,126 @@ class HighsPostsolveStack {
   }
 
   size_t numReductions() const { return reductions.size(); }
+
+  void getReductions(
+      std::vector<HighsPresolveReduction>& out) const {
+    out.clear();
+    out.reserve(reductions.size());
+    for (size_t i = 0; i < reductions.size(); ++i) {
+      size_t struct_pos = (i == 0) ? 0 : reductions[i - 1].second;
+      HighsPresolveReduction r;
+      r.type = static_cast<HighsInt>(reductions[i].first);
+      r.col = -1;
+      r.row = -1;
+      r.value = 0.0;
+      r.source = i < reductionSources.size()
+                     ? static_cast<HighsInt>(reductionSources[i])
+                     : -1;
+      switch (reductions[i].first) {
+        case ReductionType::kLinearTransform: {
+          LinearTransform s;
+          reductionValues.readAt(struct_pos, s);
+          r.col = s.col;
+          r.value = s.scale;
+          break;
+        }
+        case ReductionType::kFreeColSubstitution: {
+          FreeColSubstitution s;
+          reductionValues.readAt(struct_pos, s);
+          r.col = s.col;
+          r.row = s.row;
+          r.value = s.rhs;
+          break;
+        }
+        case ReductionType::kDoubletonEquation: {
+          DoubletonEquation s;
+          reductionValues.readAt(struct_pos, s);
+          r.col = s.colSubst;
+          r.row = s.row;
+          r.value = s.rhs;
+          break;
+        }
+        case ReductionType::kEqualityRowAddition: {
+          EqualityRowAddition s;
+          reductionValues.readAt(struct_pos, s);
+          r.row = s.row;
+          r.value = s.eqRowScale;
+          break;
+        }
+        case ReductionType::kEqualityRowAdditions: {
+          EqualityRowAdditions s;
+          reductionValues.readAt(struct_pos, s);
+          r.row = s.addedEqRow;
+          break;
+        }
+        case ReductionType::kSingletonRow: {
+          SingletonRow s;
+          reductionValues.readAt(struct_pos, s);
+          r.col = s.col;
+          r.row = s.row;
+          r.value = s.coef;
+          break;
+        }
+        case ReductionType::kFixedCol: {
+          FixedCol s;
+          reductionValues.readAt(struct_pos, s);
+          r.col = s.col;
+          r.value = s.fixValue;
+          break;
+        }
+        case ReductionType::kRedundantRow: {
+          RedundantRow s;
+          reductionValues.readAt(struct_pos, s);
+          r.row = s.row;
+          break;
+        }
+        case ReductionType::kForcingRow: {
+          ForcingRow s;
+          reductionValues.readAt(struct_pos, s);
+          r.row = s.row;
+          r.value = s.side;
+          break;
+        }
+        case ReductionType::kForcingColumn: {
+          ForcingColumn s;
+          reductionValues.readAt(struct_pos, s);
+          r.col = s.col;
+          r.value = s.colBound;
+          break;
+        }
+        case ReductionType::kForcingColumnRemovedRow: {
+          ForcingColumnRemovedRow s;
+          reductionValues.readAt(struct_pos, s);
+          r.row = s.row;
+          r.value = s.rhs;
+          break;
+        }
+        case ReductionType::kDuplicateRow: {
+          DuplicateRow s;
+          reductionValues.readAt(struct_pos, s);
+          r.row = s.duplicateRow;
+          r.value = s.duplicateRowScale;
+          break;
+        }
+        case ReductionType::kDuplicateColumn: {
+          DuplicateColumn s;
+          reductionValues.readAt(struct_pos, s);
+          r.col = s.col;
+          r.value = s.colScale;
+          break;
+        }
+        case ReductionType::kSlackColSubstitution: {
+          SlackColSubstitution s;
+          reductionValues.readAt(struct_pos, s);
+          r.col = s.col;
+          r.row = s.row;
+          r.value = s.rhs;
+          break;
+        }
+      }
+      out.push_back(r);
+    }
+  }
 };
 
 }  // namespace presolve
