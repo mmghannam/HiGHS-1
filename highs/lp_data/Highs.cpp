@@ -15,6 +15,7 @@
 #include <csignal>
 #include <functional>
 #include <iostream>
+#include <numeric>
 #include <memory>
 #include <sstream>
 
@@ -2029,6 +2030,184 @@ HighsStatus Highs::getCliques(HighsInt* num_cliques, HighsInt* num_entries,
       clique_val[i] = cliques_data_.clique_val[i];
     }
   }
+  return HighsStatus::kOk;
+}
+
+HighsStatus Highs::detectSymmetries() {
+  // Check that presolve has been run
+  const bool presolve_run =
+      model_presolve_status_ == HighsPresolveStatus::kReduced ||
+      model_presolve_status_ == HighsPresolveStatus::kReducedToEmpty ||
+      model_presolve_status_ == HighsPresolveStatus::kNotReduced;
+  if (!presolve_run) {
+    highsLogUser(options_.log_options, HighsLogType::kError,
+                 "Cannot detect symmetries: presolve has not been run\n");
+    return HighsStatus::kError;
+  }
+
+  symmetry_data_.clear();
+
+  const HighsLp& lp = presolved_model_.lp_;
+
+  // If the presolved model is empty, there are no symmetries
+  if (lp.num_col_ == 0) {
+    symmetry_data_.valid = true;
+    return HighsStatus::kOk;
+  }
+
+  HighsSymmetryDetection symDetection;
+  symDetection.loadModelAsGraph(lp, options_.small_matrix_value);
+
+  if (!symDetection.initializeDetection()) {
+    // No symmetries possible
+    symmetry_data_.valid = true;
+    symmetry_data_.orbit.assign(lp.num_col_, -1);
+    symmetry_data_.orbit_size.assign(lp.num_col_, 0);
+    return HighsStatus::kOk;
+  }
+
+  HighsSymmetries symmetries;
+  symDetection.run(symmetries);
+
+  // numGenerators is the original count before orbitope compression
+  symmetry_data_.num_generators = symmetries.numGenerators;
+
+  if (symmetries.numGenerators == 0) {
+    symmetry_data_.valid = true;
+    symmetry_data_.orbit.assign(lp.num_col_, -1);
+    symmetry_data_.orbit_size.assign(lp.num_col_, 0);
+    return HighsStatus::kOk;
+  }
+
+  // Copy surviving permutation columns and permutations (post-orbitope
+  // compression; some generators/columns may have been absorbed into orbitopes)
+  HighsInt num_perm_cols =
+      static_cast<HighsInt>(symmetries.permutationColumns.size());
+  symmetry_data_.num_columns = num_perm_cols;
+  symmetry_data_.perm_columns = symmetries.permutationColumns;
+  symmetry_data_.permutations = symmetries.permutations;
+
+  // Build orbit array using a simple union-find on column indices.
+  // We compute orbits from both the surviving permutation generators
+  // and the orbitope columns.
+  std::vector<HighsInt> parent(lp.num_col_);
+  std::vector<HighsInt> rank(lp.num_col_, 0);
+  std::iota(parent.begin(), parent.end(), 0);
+  std::vector<bool> involved(lp.num_col_, false);
+
+  // Union-find helpers (with path compression and union by rank)
+  std::function<HighsInt(HighsInt)> find = [&](HighsInt x) -> HighsInt {
+    while (parent[x] != x) {
+      parent[x] = parent[parent[x]];
+      x = parent[x];
+    }
+    return x;
+  };
+  auto unite = [&](HighsInt a, HighsInt b) {
+    a = find(a);
+    b = find(b);
+    if (a == b) return;
+    if (rank[a] < rank[b]) std::swap(a, b);
+    parent[b] = a;
+    if (rank[a] == rank[b]) rank[a]++;
+  };
+
+  // Merge from surviving permutation generators
+  for (HighsInt g = 0; g < symmetries.numPerms; g++) {
+    const HighsInt* perm =
+        symmetries.permutations.data() + g * num_perm_cols;
+    for (HighsInt i = 0; i < num_perm_cols; i++) {
+      HighsInt col = symmetries.permutationColumns[i];
+      HighsInt img = perm[i];
+      if (col != img && col >= 0 && col < lp.num_col_ && img >= 0 &&
+          img < lp.num_col_) {
+        unite(col, img);
+        involved[col] = true;
+        involved[img] = true;
+      }
+    }
+  }
+
+  // Merge from orbitope columns (each column in an orbitope row is symmetric)
+  for (const auto& orbitope : symmetries.orbitopes) {
+    for (HighsInt j = 0; j < orbitope.rowLength; j++) {
+      HighsInt first_col = orbitope.entry(0, j);
+      involved[first_col] = true;
+      for (HighsInt i = 1; i < orbitope.numRows; i++) {
+        HighsInt col = orbitope.entry(i, j);
+        if (col >= 0 && col < lp.num_col_) {
+          unite(first_col, col);
+          involved[col] = true;
+        }
+      }
+    }
+    // Also merge across columns within the same row (they're symmetric)
+    for (HighsInt i = 0; i < orbitope.numRows; i++) {
+      HighsInt first_col = orbitope.entry(i, 0);
+      for (HighsInt j = 1; j < orbitope.rowLength; j++) {
+        HighsInt col = orbitope.entry(i, j);
+        if (col >= 0 && col < lp.num_col_) {
+          unite(first_col, col);
+          involved[col] = true;
+        }
+      }
+    }
+  }
+
+  symmetry_data_.orbit.assign(lp.num_col_, -1);
+  symmetry_data_.orbit_size.assign(lp.num_col_, 0);
+
+  for (HighsInt col = 0; col < lp.num_col_; col++) {
+    if (involved[col]) {
+      symmetry_data_.orbit[col] = find(col);
+    }
+  }
+
+  // Compute orbit sizes
+  for (HighsInt col = 0; col < lp.num_col_; col++) {
+    if (symmetry_data_.orbit[col] >= 0) {
+      HighsInt rep = symmetry_data_.orbit[col];
+      symmetry_data_.orbit_size[rep]++;
+    }
+  }
+  // Propagate orbit sizes to non-representative members
+  for (HighsInt col = 0; col < lp.num_col_; col++) {
+    if (symmetry_data_.orbit[col] >= 0) {
+      HighsInt rep = symmetry_data_.orbit[col];
+      symmetry_data_.orbit_size[col] = symmetry_data_.orbit_size[rep];
+    }
+  }
+
+  symmetry_data_.valid = true;
+  return HighsStatus::kOk;
+}
+
+HighsStatus Highs::getSymmetryOrbit(HighsInt* orbit) const {
+  if (!symmetry_data_.valid) {
+    highsLogUser(options_.log_options, HighsLogType::kError,
+                 "Symmetry data not available\n");
+    return HighsStatus::kError;
+  }
+  const HighsInt num_col =
+      static_cast<HighsInt>(symmetry_data_.orbit.size());
+  for (HighsInt i = 0; i < num_col; i++) orbit[i] = symmetry_data_.orbit[i];
+  return HighsStatus::kOk;
+}
+
+HighsStatus Highs::getSymmetryPermutations(HighsInt* perm_columns,
+                                            HighsInt* permutations) const {
+  if (!symmetry_data_.valid) {
+    highsLogUser(options_.log_options, HighsLogType::kError,
+                 "Symmetry data not available\n");
+    return HighsStatus::kError;
+  }
+  if (symmetry_data_.num_generators == 0) return HighsStatus::kOk;
+  for (HighsInt i = 0; i < symmetry_data_.num_columns; i++)
+    perm_columns[i] = symmetry_data_.perm_columns[i];
+  const HighsInt total =
+      symmetry_data_.num_generators * symmetry_data_.num_columns;
+  for (HighsInt i = 0; i < total; i++)
+    permutations[i] = symmetry_data_.permutations[i];
   return HighsStatus::kOk;
 }
 

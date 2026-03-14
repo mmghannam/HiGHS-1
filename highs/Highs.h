@@ -70,6 +70,36 @@ struct HighsImplicationsData {
 };
 
 /**
+ * @brief Data structure for storing symmetry information from detection
+ */
+struct HighsSymmetryData {
+  bool valid = false;
+  HighsInt num_generators = 0;
+  HighsInt num_columns = 0;  // number of columns involved in permutations
+  // orbit[col] = orbit representative for each presolved model column
+  // (-1 if column is not involved in any symmetry)
+  std::vector<HighsInt> orbit;
+  // orbit_size[col] = size of orbit that column belongs to (0 if not involved)
+  std::vector<HighsInt> orbit_size;
+  // columns involved in permutations (indices into presolved model)
+  std::vector<HighsInt> perm_columns;
+  // generator permutations, flat array of size num_generators * num_columns
+  // permutations[g * num_columns + i] = image of perm_columns[i] under
+  // generator g
+  std::vector<HighsInt> permutations;
+
+  void clear() {
+    valid = false;
+    num_generators = 0;
+    num_columns = 0;
+    orbit.clear();
+    orbit_size.clear();
+    perm_columns.clear();
+    permutations.clear();
+  }
+};
+
+/**
  * @brief Return the version
  */
 const char* highsVersion();
@@ -639,6 +669,51 @@ class Highs {
                          HighsInt* clique_start = nullptr,
                          HighsInt* clique_col = nullptr,
                          HighsInt* clique_val = nullptr) const;
+
+  /**
+   * @brief Run symmetry detection on the presolved model.
+   * Requires presolve() to have been called first.
+   */
+  HighsStatus detectSymmetries();
+
+  /**
+   * @brief Check if symmetry data is available
+   */
+  bool hasSymmetries() const { return symmetry_data_.valid; }
+
+  /**
+   * @brief Get the number of symmetry generators found
+   */
+  HighsInt getSymmetryNumGenerators() const {
+    return symmetry_data_.num_generators;
+  }
+
+  /**
+   * @brief Get the number of columns involved in symmetry permutations
+   */
+  HighsInt getSymmetryNumColumns() const { return symmetry_data_.num_columns; }
+
+  /**
+   * @brief Get the orbit representative for each column in the presolved model.
+   * orbit[col] = orbit representative, or -1 if column is not involved in any
+   * symmetry.
+   *
+   * @param orbit  Array of size num_col (presolved model) to fill
+   * @return HighsStatus indicating success or failure
+   */
+  HighsStatus getSymmetryOrbit(HighsInt* orbit) const;
+
+  /**
+   * @brief Get the symmetry generator permutations.
+   *
+   * @param perm_columns  Array of size num_columns to fill with column indices
+   * @param permutations  Flat array of size num_generators * num_columns to
+   *                      fill. permutations[g * num_columns + i] is the image
+   *                      of perm_columns[i] under generator g.
+   * @return HighsStatus indicating success or failure
+   */
+  HighsStatus getSymmetryPermutations(HighsInt* perm_columns,
+                                      HighsInt* permutations) const;
 
   /**
    * @brief Return an LP associated with a MIP and its solution, with
@@ -1708,6 +1783,7 @@ class Highs {
 
   HighsImplicationsData implications_data_;
   HighsCliquesData cliques_data_;
+  HighsSymmetryData symmetry_data_;
 
   HighsSubSolverCallTime sub_solver_call_time_;
 

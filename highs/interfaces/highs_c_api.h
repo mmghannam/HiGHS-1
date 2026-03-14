@@ -2444,6 +2444,75 @@ HighsInt Highs_getCliques(const void* highs, HighsInt* num_cliques,
                           HighsInt* clique_col, HighsInt* clique_val);
 
 /**
+ * Run symmetry detection on the presolved model. Requires `Highs_presolve`
+ * to have been called first.
+ *
+ * @param highs  A pointer to the Highs instance.
+ *
+ * @returns A `kHighsStatus` constant indicating whether the call succeeded.
+ */
+HighsInt Highs_detectSymmetries(void* highs);
+
+/**
+ * Check if symmetry data is available.
+ *
+ * @param highs  A pointer to the Highs instance.
+ *
+ * @returns 1 if symmetry data is available, 0 otherwise.
+ */
+HighsInt Highs_hasSymmetries(const void* highs);
+
+/**
+ * Get the number of symmetry generators found.
+ *
+ * @param highs  A pointer to the Highs instance.
+ *
+ * @returns The number of generators, or 0 if symmetry data is not available.
+ */
+HighsInt Highs_getSymmetryNumGenerators(const void* highs);
+
+/**
+ * Get the number of columns involved in symmetry permutations.
+ *
+ * @param highs  A pointer to the Highs instance.
+ *
+ * @returns The number of columns involved, or 0 if symmetry data is not
+ *          available.
+ */
+HighsInt Highs_getSymmetryNumColumns(const void* highs);
+
+/**
+ * Get the orbit representative for each column in the presolved model.
+ *
+ * @param highs  A pointer to the Highs instance.
+ * @param orbit  Array of size num_col (presolved model) to fill. Each entry
+ *               is the orbit representative column index, or -1 if the column
+ *               is not involved in any symmetry.
+ *
+ * @returns A `kHighsStatus` constant indicating whether the call succeeded.
+ */
+HighsInt Highs_getSymmetryOrbit(const void* highs, HighsInt* orbit);
+
+/**
+ * Get the symmetry generator permutations.
+ *
+ * Call `Highs_getSymmetryNumGenerators` and `Highs_getSymmetryNumColumns`
+ * first to determine the required array sizes.
+ *
+ * @param highs          A pointer to the Highs instance.
+ * @param perm_columns   Array of size num_columns to receive the column
+ *                       indices involved in permutations.
+ * @param permutations   Flat array of size num_generators * num_columns.
+ *                       permutations[g * num_columns + i] is the image of
+ *                       perm_columns[i] under generator g.
+ *
+ * @returns A `kHighsStatus` constant indicating whether the call succeeded.
+ */
+HighsInt Highs_getSymmetryPermutations(const void* highs,
+                                       HighsInt* perm_columns,
+                                       HighsInt* permutations);
+
+/**
  * Set a primal (and possibly dual) solution as a starting point, then run
  * crossover to compute a basic feasible solution.
  *

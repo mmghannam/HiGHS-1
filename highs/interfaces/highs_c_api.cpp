@@ -1402,6 +1402,33 @@ HighsInt Highs_getCliques(const void* highs, HighsInt* num_cliques,
                                                 clique_val);
 }
 
+HighsInt Highs_detectSymmetries(void* highs) {
+  return (HighsInt)((Highs*)highs)->detectSymmetries();
+}
+
+HighsInt Highs_hasSymmetries(const void* highs) {
+  return ((Highs*)highs)->hasSymmetries() ? 1 : 0;
+}
+
+HighsInt Highs_getSymmetryNumGenerators(const void* highs) {
+  return ((Highs*)highs)->getSymmetryNumGenerators();
+}
+
+HighsInt Highs_getSymmetryNumColumns(const void* highs) {
+  return ((Highs*)highs)->getSymmetryNumColumns();
+}
+
+HighsInt Highs_getSymmetryOrbit(const void* highs, HighsInt* orbit) {
+  return (HighsInt)((Highs*)highs)->getSymmetryOrbit(orbit);
+}
+
+HighsInt Highs_getSymmetryPermutations(const void* highs,
+                                       HighsInt* perm_columns,
+                                       HighsInt* permutations) {
+  return (HighsInt)((Highs*)highs)->getSymmetryPermutations(perm_columns,
+                                                            permutations);
+}
+
 HighsInt Highs_getPresolvedLp(const void* highs, const HighsInt a_format,
                               HighsInt* num_col, HighsInt* num_row,
                               HighsInt* num_nz, HighsInt* sense, double* offset,
